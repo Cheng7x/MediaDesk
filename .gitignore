@@ -1,0 +1,33 @@
+# Local secrets. Keep sanitized examples and dependency lockfiles trackable.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Build output and tool caches.
+**/target/
+**/node_modules/
+**/dist/
+**/coverage/
+*.tsbuildinfo
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Runtime data must use these explicit project-local paths.
+/.local/
+/data/
+/uploads/
+/tmp/
+/logs/
+*.log
+
+.idea./
+docs/
+AGENTS.md
+HANDOFF.md
