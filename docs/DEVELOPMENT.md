@@ -311,7 +311,8 @@ M0 先核对本机已有环境，必要时参考 TaskFlow 的可用组合，但�
 
 | 项目 | 当前记录 | 验证时点与证据要求 |
 | --- | --- | --- |
-| Java、Spring Boot、MyBatis、构建工具/Wrapper | 待验证 | M0：官方兼容说明 + 一次干净构建 |
+| Java、Spring Boot、构建工具/Wrapper | 后端 Web 骨架已构建、启动并通过 ping，见 6.2；版本配置以构建文件和 Wrapper 为准 | 本轮未单独执行 clean 或完成官方兼容说明核对，不据此认定 M0 环境验收全部通过 |
+| MyBatis | 尚未引入 | 数据库接入时核对兼容性并验证查询链路 |
 | Node、包管理器、Vue/TS 与组件库 | 待验证 | M0：安装、类型检查/构建，提交唯一 lockfile |
 | MySQL、Flyway | 待验证 | M0 连接，M1 新库迁移与升级验证 |
 | S3 兼容实现、SDK、镜像 | 待验证 | M0：私有上传/下载、multipart、签名、CORS 和校验短实验 |
@@ -327,7 +328,7 @@ M0 先核对本机已有环境，必要时参考 TaskFlow 的可用组合，但�
 
 ### 4.1 2026-10-20：本机只读检查与首次 SQL 实践
 
-本轮已执行工具版本查询及 Windows 服务状态读取，未连接数据库、读取密码、启动/停止服务、安装软件或修改配置。以下是发现的已有环境，不是项目依赖锁定，也不是构建或兼容验证：
+该次检查仅执行工具版本查询及 Windows 服务状态读取，未连接数据库、读取密码、启动/停止服务、安装软件或修改配置。下表保留当时的环境发现；后续用户执行的骨架构建与启动验证见 6.2：
 
 | 项目 | 实际输出及限制 |
 | --- | --- |
@@ -397,21 +398,22 @@ SHOW CREATE TABLE mediadesk_lab_20261020.memberships;
 
 ## 6. 已验证命令登记
 
-**目前没有应用工程，因此没有已验证的应用构建、测试、启动或迁移命令。** 仅工具版本查询已执行，见 6.1；4.1 的用户 SQL 实践仍待执行。后续使用实际脚本/Wrapper 建立入口，验证后在此填入准确目录与命令，不将猜测或示例登记为可用命令。
+**已有后端最小骨架。** 2026-10-20 用户在 Windows PowerShell 执行后端构建并提供 BUILD SUCCESS 输出，随后确认可执行 JAR 启动及 ping 成功，见 6.2。未由 AI 重跑；当前没有已提交的自动测试，数据库实践仍待反馈。
 
 | 操作 | 工作目录 | 已验证命令 | 最近证据 |
 | --- | --- | --- | --- |
-| 后端构建与关键测试 | 待建 | 未建立 | 未运行 |
+| 后端编译与打包 | backend | `.\mvnw.cmd verify` | 2026-10-20 用户提供 BUILD SUCCESS 输出；自动测试尚未建立 |
+| 后端 API 启动 | backend | `java -jar .\target\mediadesk-0.0.1-SNAPSHOT.jar` | 2026-10-20 用户确认启动及 ping 成功 |
 | 前端安装、类型检查、构建 | 待建 | 未建立 | 未运行 |
 | 启停当前阶段本地依赖 | 待建 | 未建立 | 未运行 |
 | 初始化/升级数据库 | 待建 | 未建立 | 未运行 |
-| 运行 API / 前端 | 待建 | 未建立 | 未运行 |
+| 运行前端 | 待建 | 未建立 | 未运行 |
 | 运行 worker | 待建 | 未建立 | 未运行 |
 | 故障实验与性能基线 | 待建 | 未建立 | 未运行 |
 
 新增条目时记录 OS/前置条件、配置样例位置、预期结果、验证日期与证据路径；声明 Windows 或 Linux 支持必须有相应证据。清理数据的命令单列目标、后果与授权条件，不混在普通启动步骤中。
 
-### 6.1 仅版本查询已执行
+### 6.1 初次环境检查：仅查询版本
 
 2026-10-20，在项目根目录的 PowerShell 执行如下只读命令；不代表应用功能已运行。Maven 与 Docker 的读取拒绝及检查边界见 4.1，原异常没有忽略为成功。
 
@@ -425,6 +427,31 @@ SHOW CREATE TABLE mediadesk_lab_20261020.memberships;
 | `& 'C:/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe' --version` | 输出客户端 8.0.46，不代表服务端已连接 |
 | `docker --version` | 输出 29.5.3，同时用户配置读取被拒绝 |
 | `docker compose version` | 输出 v5.1.4，同时用户配置读取被拒绝 |
+
+### 6.2 2026-10-20：后端骨架构建与 ping
+
+- 代码：任务分支 chore/backend-bootstrap，骨架提交 `6ad346d`；构建配置见 [pom.xml](../backend/pom.xml)，Maven 分发版本与 Wrapper 配置见 [maven-wrapper.properties](../backend/.mvn/wrapper/maven-wrapper.properties)。本轮不新增组件或调整依赖。
+- 前置条件：Windows PowerShell、可用的 Java，以及首次下载 Wrapper/构建依赖所需的网络；本轮未单独记录 Wrapper 进程实际使用的完整 Java/Maven 版本输出，不据配置推定所有运行环境。
+- 构建证据：用户执行第 6 节的构建命令并提供日志；2026-10-20 20:46:30 +08:00 显示 BUILD SUCCESS，生成并完成 `mediadesk-0.0.1-SNAPSHOT.jar` 的 Spring Boot 重打包。没有单独执行 clean，也没有自动测试通过的证据。
+- 启动与接口：用户按第 6 节命令运行该 JAR，并确认访问 `http://localhost:8080/api/ping` 成功；约定响应为 `{ "message": "pong" }`。启动及接口结果为用户反馈，AI 未独立重跑或保存完整响应日志。
+- 停止方式：启动终端使用 Ctrl+C；本轮未单独核验进程退出。
+- 验证范围：本机 Web 骨架可构建、启动并响应 ping；未验证数据库、会话、鉴权、业务接口、前端、存储或生产部署，不据此认定 M0 整体通过。无需为本次低风险骨架重复扩大检查。
+
+### 6.3 当前任务分支的提交与合并
+
+本项目当前以本地开发为主，采用 main 与短期任务分支；完成必要验证后直接在本地 merge 到 main，不要求每次建立 PR。提交使用 `类型(范围): 具体改动`，一次提交围绕一个可解释的目的。有远端同名任务分支时保持正确跟踪，但本地提交与合并无需每次推送；远端同步按用户明确需要执行。
+
+本次工作目录为项目根目录，在 chore/backend-bootstrap 提交三个文档的更新，再将骨架和文档快进合入 main：
+
+```powershell
+git diff -- README.md HANDOFF.md docs/DEVELOPMENT.md
+git add README.md HANDOFF.md docs/DEVELOPMENT.md
+git commit -m "docs(backend): record bootstrap verification and current status"
+git switch main
+git merge --ff-only chore/backend-bootstrap
+```
+
+本次 main 是任务分支的祖先，快进即可保留已有提交并更新 main，不额外生成合并提交。如果以后两个分支已经分叉，先查看差异，再按实际需要普通 merge，不用 reset 或强推绕过。合并后下一任务从更新后的 main 创建新分支；本轮不推送、不删除分支、不改写历史。PR 留待确有协作或评审需要时使用。
 
 ## 7. 配置、安全与部署
 
