@@ -37,7 +37,7 @@
 
 成员列表可以关联用户信息与成员关系形成响应，显示名、账号、空间和角色不必全部来自 Membership 一张表。具体显示字段及响应形状在首批接口契约中固定，不直接暴露持久化实体或敏感字段。
 
-三个概念字段是最少业务信息，不代表最终表只能有三列。技术主键、字段类型、引用约束、移除/重新加入语义与查询索引仍需细化。
+三个概念字段是最少业务信息，不代表最终表只能有三列。后续主键、类型、引用约束及索引已汇总至 2.7；移除/重新加入语义见 PRODUCT 2.1。
 
 已确定的约束草案：
 
@@ -55,7 +55,7 @@ UNIQUE (user_id, workspace_id)
 
 ### 2.2 M0-2：User 字段职责草案
 
-状态：2026-10-19 引导设计草案，尚未建表、编码或验证登录。用户提出主键、账号、处理后的密码及名称四类信息；当前先明确职责和基本约束，完整类型、长度、迁移及接口表示仍待固定。
+状态：本节保留 2026-10-19 的字段设计依据；后续完整 DDL 见 2.7。2026-10-27 用户已编写 UserAccount、UserMapper 和本地认证代码，当前实现与运行边界见 6.4，不据设计说明推定登录已通过验证。
 
 | 概念字段 | 用途 | 当前草案 |
 | --- | --- | --- |
@@ -89,7 +89,7 @@ ownerId 是可行的另一种所有权建模方案，但若与 Membership 的 Ow
 
 该草案仍必须保证每个已创建空间有且只有一个有效 Owner，且不能移除或降级唯一 Owner。Membership 的 userId/workspaceId 联合唯一只防同一成员关系重复，不能单独保证每空间只有一个 Owner。Owner 授予仅在空间创建入口发生，邀请与角色调整不授予 Owner；完整数据库/事务约束与并发验证在首批建表和 M1 中落实，不据字段划分认定已经成立。
 
-逻辑引用关系如下；外键约束草案见 2.4，完整主键形式和生命周期契约仍待补齐：
+逻辑引用关系如下；外键约束草案见 2.4，完整主键形式见 2.7，生命周期契约见 PRODUCT 2.1：
 
 ```text
 Membership.userId      -> User.id
@@ -128,7 +128,7 @@ CONSTRAINT fk_membership_workspace
 
 动作子句的顺序是 ON DELETE/ON UPDATE 后接 RESTRICT，不是 RESTRAINT ON DELETE/ON UPDATE。这里限制的是被引用的 workspaces 行被物理删除或其引用键 id 被改变；修改不影响该键的 name 等字段不因这条外键被拒绝。移除 memberships 子行不会被这条外键自动禁止，唯一 Owner 保护仍需独立保证。
 
-移除成员是否保留历史、如何重新加入及唯一 Owner 保护仍需明确业务契约，不能由外键动作自动决定。
+移除、重新加入及 Owner 保护按 [PRODUCT 2.1](PRODUCT.md#21-owner-与成员生命周期) 和本文件 3.3 固定；这些业务行为不能由外键动作自动决定。
 
 三类约束各有职责：NOT NULL 防止缺少必要引用，联合唯一防止同一用户/空间成员关系重复，外键防止指向不存在的父记录。外键不授予操作者权限，也不保证空间的 Owner 唯一或必然存在，服务端授权和事务规则仍需独立落实。
 
@@ -159,7 +159,7 @@ workspaceId 不硬编码，也不靠查询 MAX(id) 猜测；后续用选定 MyBa
 
 ### 2.6 M0-2：唯一 Owner 的约束候选
 
-状态：2026-10-19 AI 提供的讲解与约束候选，未建表、未获运行证据，不代表已完成 Owner 生命周期设计。以下片段假定 memberships 每行代表一条当前成员关系；若后续保留失效成员行，需同时调整唯一性和授权条件。
+状态：2026-10-19 提供的约束候选；2026-10-20 用户已反馈完整草稿建表和第二个 Owner 拒绝实验通过，见 4.2。Owner 生命周期已在 PRODUCT 2.1 固定，业务接口仍待实现。以下片段以 memberships 每行代表当前成员关系为前提。
 
 “有且只有一个 Owner”拆成两部分：创建事务共同写入空间和 Owner，保证成功创建时至少有一个；数据库约束限制最多一个。后续成员移除、退出和角色调整必须保护已有 Owner，邀请与角色调整不授予 Owner，第一版不开放所有权转移。
 
@@ -182,7 +182,7 @@ CONSTRAINT uk_membership_one_owner UNIQUE (owner_workspace_id)
 
 ### 2.7 M0-2：首批三表完整 DDL 评审草稿
 
-状态：2026-10-20 AI 汇总用于整体讲解与用户修改的 [SQL 草稿](drafts/m0-2-identity.sql)，未执行，不是 Flyway 迁移。它将 2.1–2.6 的片段组合为完整 CREATE TABLE；下列选值仅为当前可评审候选，未代表首批契约已通过或本机 MySQL 版本已选定。没有连接或修改数据库。
+状态：2026-10-20 AI 汇总用于整体讲解与用户修改的 [SQL 草稿](drafts/m0-2-identity.sql)，不是 Flyway 迁移。用户随后反馈按 4.1 实践“一切顺利”，记录为三表创建成功的用户反馈；未提供服务端版本及原始输出，AI 未连接或修改数据库。它将 2.1–2.6 的片段组合为完整 CREATE TABLE；下列选值仍为可评审候选，不代表约束行为、首批契约或数据库版本已完成验证。
 
 | 选择 | 当前草稿及理由 |
 | --- | --- |
@@ -202,7 +202,7 @@ MySQL 的 CHECK 对 FALSE 拒绝，对 UNKNOWN（如 NULL）可以通过，因�
 
 建表依赖顺序为 users/workspaces 后 memberships；DDL 不应混入 2.5 的创建空间业务事务，MySQL 普通 CREATE TABLE 等 DDL 会隐式提交，不能把三次建表当成可共同回滚的业务 INSERT。正式迁移时再落实版本及失败处理。[MySQL 隐式提交说明](https://dev.mysql.com/doc/refman/8.4/en/implicit-commit.html)。
 
-本草稿不擅自增加成员状态、软删除、审计字段或邀请表；成员历史/重新加入语义仍待契约明确，不能把省略字段当成已经实现删除生命周期。后续真实 MySQL 证据至少覆盖重复账号/成员、合法/非法角色（含 NULL、大小写和尾随空格）、外键、第二个 Owner、多个普通成员以及创建事务失败回滚。
+本草稿不增加成员状态、软删除、审计字段或邀请表；当前关系删除与重新加入语义见 PRODUCT 2.1，接口见 3.3，尚未实现。真实 MySQL 证据目标仍覆盖重复账号/成员、合法/非法角色（含 NULL、大小写和尾随空格）、外键、第二个 Owner、多个普通成员以及创建事务失败回滚；4.2 已有用户反馈通过的子集，其余在相关实现时补齐，不逐项阻塞当前契约推进。
 
 用户已提交空间列表关联查询：JOIN、按用户过滤及排序正确；SELECT 返回了成员引用字段，尚缺页面需要的空间名称。修正与接口衔接见 2.8、3.1，不代表查询或接口已实现。
 
@@ -303,7 +303,55 @@ M0 只形成首批需要的请求/响应与权限契约，后续按阶段增加�
 - 提交结果不明：提交时断连等情况不能声称已回滚。若仍可回复，使用 503/CREATE_RESULT_UNKNOWN；若网络已断，前端表现为结果未确认，并引导刷新自己的空间列表核对，不自动重试。
 - 重复语义：当前契约不承诺创建幂等，相同名称允许用于不同空间，重复 POST 可能得到两个不同空间；同名空间不能证明某次重试成功。提交期间限制界面重复点击仅改善体验，不作为服务端防重保证。若后续要求自动重试必须回到同一空间，再设计带数据库唯一约束、请求指纹及持久结果的幂等键契约，不能只用前端按钮或空间名称去重。
 
-以上明确最小行为与限制，不据契约宣称恢复、防重或 CSRF 链路已实现。与数据库实验并行保留的首批未决项仍包括账号来源/最简邀请、成员生命周期及 Asset/AssetVersion 契约。
+以上明确最小行为与限制，不据契约宣称恢复、防重或 CSRF 链路已实现。成员生命周期已在 PRODUCT 2.1 和下节固定；首批未决项仍包括账号来源/最简邀请及 Asset/AssetVersion 契约。
+
+### 3.3 M0-2：成员列表、角色调整与移除契约
+
+状态：2026-10-20 设计基线，未实现。沿用三表结构，当前成员关系为唯一授权依据；邀请创建/接受另行形成契约，不提供绕过接受环节的直接添加成员 API。
+
+共同行为：
+
+- 三个端点均要求有效登录会话；当前成员可读取成员列表，只有 Owner 可修改。非成员或不存在的空间统一 404/RESOURCE_NOT_FOUND；已是成员但没有管理权限返回 403/FORBIDDEN；未登录返回 401/AUTH_REQUIRED。写请求保留 CSRF，拒绝时为 403/CSRF_REJECTED。
+- 路径 ID 为正的十进制字符串，范围不超过有符号 BIGINT；格式错误为 400/INVALID_PATH。认证身份只取服务端会话，不能使用请求指定的操作者 ID。先授权，再披露目标成员状态。
+- 依赖不可用返回 503/SERVICE_UNAVAILABLE；未预期故障返回 500/INTERNAL_ERROR，沿用统一错误体。写入提交结果不明时返回 503/WRITE_RESULT_UNKNOWN（若仍能回复），界面刷新成员列表核对，不自动重放请求。
+- 私有响应使用 Cache-Control: no-store。成员移除不注销该用户在其他空间的会话；同一会话后续访问此空间按最新成员关系拒绝。
+
+| 方法与路径 | 输入 | 成功结果与重复语义 |
+| --- | --- | --- |
+| GET /api/workspaces/{workspaceId}/members | page/size 默认、上限和未知参数规则沿用 3.1；不接受筛选 userId/role | 200，`{items:[{userId,displayName,role}],page,size,hasNext}`；userId 为字符串，按 user_id 升序，取 size+1 判断 hasNext；不返回账号或密码哈希 |
+| PATCH /api/workspaces/{workspaceId}/members/{userId} | JSON 仅接受 role，值为 Editor 或 Reviewer；未知字段、空值或 Owner 为 400/INVALID_BODY | 200，返回 `{userId,displayName,role}`；已有相同角色直接返回当前结果；目标非成员为 404/MEMBER_NOT_FOUND；目标是 Owner 为 409/OWNER_PROTECTED |
+| DELETE /api/workspaces/{workspaceId}/members/{userId} | 无请求体 | 204，无响应体；目标已不是成员也返回 204；目标是 Owner 为 409/OWNER_PROTECTED；不得删除用户或其业务内容 |
+
+GET 空页返回 items=[]、hasNext=false。PATCH/DELETE 不接受额外查询参数；GET 的分页溢出等校验沿用 3.1。成员显示名不要求唯一，操作目标始终使用 userId。
+
+写事务遵循 ARCHITECTURE 的空间行锁顺序：锁空间 → 核对当前操作者为 Owner → 检查目标 → 执行条件写入 → 提交。调整和删除的写入条件包含空间、用户和非 Owner 角色，检查影响行数；不得只依赖页面禁用按钮。目标本来不存在与预期存在却未写入必须区分，后者重新核对或返回 409/MEMBER_STATE_CONFLICT。移除时使同空间同用户的待接受邀请失效，需与删除成员关系在一个事务内完成；即使成员关系已不存在，也完成待接受邀请失效后再返回 204。
+
+首版请求针对处理时的当前成员关系，不含成员任期编号。无并发变动时，同角色 PATCH/重复 DELETE 保持结果；若移除后该用户已重新加入，再次 DELETE 会移除新的当前关系，旧 PATCH 也可能作用于新关系，因此超时不自动重试，先刷新核对。多个 Owner 管理请求按事务处理顺序生效，不承诺页面级防覆盖；如需要“旧页面绝不能影响新任期”，再引入关系版本及条件请求。
+
+M1 实现时保留必要的 Owner 保护、跨空间授权、移除与邀请接受竞争、失败回滚检查；不要求现在为尚未实现的接口逐项手动实验。
+
+### 3.4 M1 前置实践：GET /api/me 与未登录 JSON 响应
+
+状态：2026-10-27 明确的下一步契约，待用户实现；现有 `/dev/me` 仍是只返回账号的 local 练习接口。当前先复用 `/login` 表单建立会话，正式登录/注销接口的输入输出与 CSRF 交互另行收口。
+
+| 项目 | 契约 |
+| --- | --- |
+| 请求 | GET /api/me；无业务输入，不接受客户端指定用户身份。即使附加 userId 参数，也不能改变当前身份 |
+| 身份来源 | Spring Security 当前 Authentication.principal；扩展 MediaDeskPrincipal 携带数据库生成的 userId、规范化账号和显示名 |
+| 成功 | 200，`{id:"十进制ID",account:"账号",displayName:"显示名"}`；用独立 MeResponse 映射，不返回密码、哈希或权限内部字段 |
+| 时间语义 | 账号/显示名暂取登录时快照；尚未提供账号/显示名修改入口，不承诺会话内自动刷新这些字段 |
+| 未登录/会话失效 | 401，`{code:"AUTH_REQUIRED",message:"请先登录",requestId:"本次请求标识"}`，Content-Type 为 JSON，不返回登录页 HTML，不重定向 |
+| 缓存 | 成功与 401 均设置 Cache-Control: no-store |
+
+MediaDeskPrincipal 可继承框架 User，以最少代码保留 UserDetails、Serializable 和 CredentialsContainer 行为；只增加 id/displayName，不重复存储密码哈希。DatabaseUserDetailsService 每次加载都创建新的 principal，仍由 Provider 校验密码；不在 principal 里固化 Workspace 角色。
+
+MeController 使用 `@AuthenticationPrincipal` 取得当前身份。自定义 principal 不作为单例 Bean 注册；它是每次用户认证产生的身份对象，MVC 参数解析器按请求提供。Spring 的默认 User 仍可能留在旧会话中，改动后应重新启动本地应用并重新登录，不能直接沿用旧 principal 测试新接口。
+
+ApiAuthenticationEntryPoint 实现 AuthenticationEntryPoint，负责在过滤器层写入 JSON 401；由 Spring 注入 Jackson 3 的 ObjectMapper（包名 tools.jackson.databind），序列化统一的 ApiError(code,message,requestId)。当前 requestId 可用服务端 UUID 生成，不声称已具备全链路请求追踪。
+
+LocalSecurityConfig 通过 `defaultAuthenticationEntryPointFor` 为 `/api/**` 选择该处理器，保留 `/dev/**` 的表单重定向及现有 CSRF、Provider、登录/注销；不得把 `/api/me` 加入 permitAll，也不新增第二条认证链。HTTP 403/写接口 CSRF 的统一错误处理随正式登录与空间写入一起补齐，本步不宣称已完成全部错误响应。
+
+最小实践结果：未登录 `/api/me` 返回 JSON 401 → 用现有 `/login` 登录 → 返回 id/account/displayName → 注销后再请求为 401。来源机制见 [MVC 身份参数解析](https://docs.spring.io/spring-security/reference/servlet/integrations/mvc.html)、[框架 User 扩展](https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/core/userdetails/User.html)、[按请求选择认证入口](https://docs.spring.io/spring-security/reference/api/java/org/springframework/security/config/annotation/web/configurers/ExceptionHandlingConfigurer.html)。
 
 ## 4. 版本与环境登记
 
@@ -312,9 +360,9 @@ M0 先核对本机已有环境，必要时参考 TaskFlow 的可用组合，但�
 | 项目 | 当前记录 | 验证时点与证据要求 |
 | --- | --- | --- |
 | Java、Spring Boot、构建工具/Wrapper | 后端 Web 骨架已构建、启动并通过 ping，见 6.2；版本配置以构建文件和 Wrapper 为准 | 本轮未单独执行 clean 或完成官方兼容说明核对，不据此认定 M0 环境验收全部通过 |
-| MyBatis | 尚未引入 | 数据库接入时核对兼容性并验证查询链路 |
+| MyBatis | 用户已引入 starter 4.1.0，诊断及用户查询 Mapper 已编写 | 已与 Boot 4.1 系列发布说明核对；实际查询和认证验证按 6.4 登记 |
 | Node、包管理器、Vue/TS 与组件库 | 待验证 | M0：安装、类型检查/构建，提交唯一 lockfile |
-| MySQL、Flyway | 待验证 | M0 连接，M1 新库迁移与升级验证 |
+| MySQL、Flyway | 用户提供服务端 8.0.46 的 IDE 连接成功输出，三表隔离 SQL 实验已反馈通过；Flyway 未引入 | 保留现有实验库，后续在全新隔离开发库验证迁移，不将手动建表当作迁移通过 |
 | S3 兼容实现、SDK、镜像 | 待验证 | M0：私有上传/下载、multipart、签名、CORS 和校验短实验 |
 | Docker/Compose、机器可用内存/磁盘 | 待验证 | M0：记录安装情况与资源预算，不默认已可用 |
 | FFmpeg/ffprobe、执行上限 | 待验证 | M3：受控样例、超时、取消与清理 |
@@ -379,7 +427,113 @@ SHOW TABLES FROM mediadesk_lab_20261020;
 SHOW CREATE TABLE mediadesk_lab_20261020.memberships;
 ```
 
-以上 SQL 均为给用户的待执行步骤，尚无执行证据。首轮反馈只需服务端版本、三个表是否出现，以及有错误时的错误号/文字；不要求提交数据库凭据或其他项目内容。之后再在同一隔离库用样例数据验证查询、约束和回滚。机制依据：[MySQL 8.0 CHECK 版本边界](https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html)、[binary/_bin 比较规则](https://dev.mysql.com/doc/refman/8.0/en/charset-binary-collations.html)。
+2026-10-20 用户在上述步骤后反馈“一切顺利”，据此记录隔离建表成功；未收到服务端版本、SHOW CREATE TABLE 等原始输出，AI 未独立执行，不据此推定约束行为或事务已通过。后续实践见 4.2。机制依据：[MySQL 8.0 CHECK 版本边界](https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html)、[binary/_bin 比较规则](https://dev.mysql.com/doc/refman/8.0/en/charset-binary-collations.html)。
+
+### 4.2 M0-2：空间查询、约束拒绝与显式回滚
+
+状态：2026-10-20 用户明确反馈上一轮均已测试且符合预期，记录 A–D 通过（用户执行，AI 未独立重跑，未归档原始输出，服务端版本仍待补）。只使用 4.1 创建的 mediadesk_lab_20261020 隔离库和虚构数据；一次事务内完成，最后回滚全部本轮样例，不删除已有数据。本轮不验证成功提交、并发、外键拒绝及所有角色边界。
+
+使用一个没有其他待提交操作的查询控制台，全程保持同一个数据库连接。按块执行，预期报错的语句单独执行；不要全选运行、点击提交、切换连接或夹入 DDL。若出现非预期错误，手动执行 ROLLBACK 后停止并反馈。连接中断时停止，不在重连后的连接上继续使用这些会话变量。
+
+**A. 核对目标并建立样例。** 先执行以下两句；确认 current_database 精确为 mediadesk_lab_20261020，再执行后面的事务。顺便保留 server_version，补齐版本证据。
+
+```sql
+USE mediadesk_lab_20261020;
+SELECT DATABASE() AS current_database, VERSION() AS server_version;
+```
+
+以下两个账号必须尚不存在；若插入提示重复，回滚并反馈，不通过忽略错误或覆盖记录继续。password_hash 仅为实验占位文本，不是可用于认证的密码哈希。
+
+```sql
+START TRANSACTION;
+
+INSERT INTO users (account, password_hash, display_name)
+VALUES ('lab_owner_20261020', 'LAB_ONLY_NOT_A_PASSWORD_HASH', '实验创建者');
+SET @lab_owner = LAST_INSERT_ID();
+
+INSERT INTO users (account, password_hash, display_name)
+VALUES ('lab_editor_20261020', 'LAB_ONLY_NOT_A_PASSWORD_HASH', '实验编辑者');
+SET @lab_editor = LAST_INSERT_ID();
+
+INSERT INTO workspaces (name) VALUES ('事务练习空间');
+SET @lab_workspace = LAST_INSERT_ID();
+
+INSERT INTO memberships (user_id, workspace_id, role)
+VALUES (@lab_owner, @lab_workspace, 'Owner'),
+       (@lab_editor, @lab_workspace, 'Editor');
+
+SELECT w.id, w.name, m.role
+FROM memberships AS m
+JOIN workspaces AS w ON w.id = m.workspace_id
+WHERE m.user_id = @lab_editor
+ORDER BY w.id ASC;
+```
+
+预期恰好一行，name 为“事务练习空间”、role 为 Editor。LAST_INSERT_ID() 在每次成功插入后立即取实际生成 ID，不假定从 1 开始；@lab_* 是当前连接的会话变量，不是 MyBatis 参数。当前连接能读到自己尚未提交的数据，不等于已经持久提交。
+
+**B. 验证两种不同的重复。** 两条分别执行，均预期重复键错误（通常为 1062）。若意外成功，立即 ROLLBACK 并反馈，不继续后续实验。
+
+```sql
+-- 同一个用户再次加入同一个空间：联合主键拒绝。
+INSERT INTO memberships (user_id, workspace_id, role)
+VALUES (@lab_editor, @lab_workspace, 'Reviewer');
+```
+
+```sql
+-- 另一位已有成员也改为 Owner：Owner 唯一索引拒绝。
+UPDATE memberships SET role = 'Owner'
+WHERE user_id = @lab_editor AND workspace_id = @lab_workspace;
+```
+
+两次预期拒绝之后，检查状态仍为一位 Owner、一位 Editor：
+
+```sql
+SELECT user_id, role FROM memberships
+WHERE workspace_id = @lab_workspace ORDER BY user_id;
+```
+
+**C. 观察第二次业务写入失败留下的中间状态。** 先创建另一个空间，再单独执行故意写错角色的成员插入：
+
+```sql
+INSERT INTO workspaces (name) VALUES ('应随事务回滚的空间');
+SET @lab_failed_workspace = LAST_INSERT_ID();
+```
+
+```sql
+-- 故意使用 Admin；预期 ck_memberships_role 的 CHECK 错误。
+INSERT INTO memberships (user_id, workspace_id, role)
+VALUES (@lab_owner, @lab_failed_workspace, 'Admin');
+```
+
+只有确认出现预期 CHECK 错误才继续查询；意外成功则 ROLLBACK 并反馈。查询预期为 1、0，说明空间写入仍在当前事务内，失败语句没有替你撤销前面的写入：
+
+```sql
+SELECT
+    (SELECT COUNT(*) FROM workspaces
+     WHERE id = @lab_failed_workspace) AS workspace_rows,
+    (SELECT COUNT(*) FROM memberships
+     WHERE workspace_id = @lab_failed_workspace) AS membership_rows;
+```
+
+**D. 回滚整组写入并核对。** 手动执行，不依赖控制台在错误后自动继续：
+
+```sql
+ROLLBACK;
+
+SELECT
+    (SELECT COUNT(*) FROM users
+     WHERE id IN (@lab_owner, @lab_editor)) AS user_rows,
+    (SELECT COUNT(*) FROM workspaces
+     WHERE id IN (@lab_workspace, @lab_failed_workspace)) AS workspace_rows,
+    (SELECT COUNT(*) FROM memberships
+     WHERE workspace_id IN (@lab_workspace, @lab_failed_workspace)) AS membership_rows;
+```
+
+预期三个计数全为 0。回滚范围包含 A 中的所有样例，因为它们同属一个未提交事务；表结构保留。自增序列可能留空号，不要求后续 ID 连续。
+
+机制依据：[InnoDB 错误处理](https://dev.mysql.com/doc/refman/8.0/en/innodb-error-handling.html)、[显式事务与回滚](https://dev.mysql.com/doc/refman/8.0/en/commit.html)、[LAST_INSERT_ID](https://dev.mysql.com/doc/refman/8.0/en/information-functions.html#function_last-insert-id)。本实验刻意在错误后观察状态；后续业务代码应在整组操作失败时进入回滚路径，不能吞掉异常后提交。
+
+本次用户反馈覆盖：A 查询返回预期空间及 Editor；B 重复成员和第二个 Owner 均被拒绝；C 非法角色被拒绝、空间与成员计数为 1/0；D 回滚后三个计数均为 0。证据来自用户对整轮结果的确认，不是 AI 实测日志。无需重复运行；服务端版本在后续实际连接时补记，不阻塞契约推进。
 
 ## 5. 资源限制登记
 
@@ -398,11 +552,11 @@ SHOW CREATE TABLE mediadesk_lab_20261020.memberships;
 
 ## 6. 已验证命令登记
 
-**已有后端最小骨架。** 2026-10-20 用户在 Windows PowerShell 执行后端构建并提供 BUILD SUCCESS 输出，随后确认可执行 JAR 启动及 ping 成功，见 6.2。未由 AI 重跑；当前没有已提交的自动测试，数据库实践仍待反馈。
+**已有用户亲手编写的数据库接入和 local 登录代码。** 2026-10-20 骨架构建/启动/ping 与隔离 SQL 实践已有用户反馈；2026-10-27 代码状态见 6.4，提交前干净构建通过，命令与边界见 6.5。早前 AI 代写版本已撤回，其构建/测试不能作为当前版本证据；当前没有自动化测试用例，尚未运行本轮登录流程。
 
 | 操作 | 工作目录 | 已验证命令 | 最近证据 |
 | --- | --- | --- | --- |
-| 后端编译与打包 | backend | `.\mvnw.cmd verify` | 2026-10-20 用户提供 BUILD SUCCESS 输出；自动测试尚未建立 |
+| 后端编译与打包 | backend | `.\mvnw.cmd verify`；本次缓存 Maven 替代命令见 6.5 | 2026-10-27 缓存 Maven clean verify 通过；Wrapper 本次启动失败；当前无自动化测试用例 |
 | 后端 API 启动 | backend | `java -jar .\target\mediadesk-0.0.1-SNAPSHOT.jar` | 2026-10-20 用户确认启动及 ping 成功 |
 | 前端安装、类型检查、构建 | 待建 | 未建立 | 未运行 |
 | 启停当前阶段本地依赖 | 待建 | 未建立 | 未运行 |
@@ -452,6 +606,56 @@ git merge --ff-only chore/backend-bootstrap
 ```
 
 本次 main 是任务分支的祖先，快进即可保留已有提交并更新 main，不额外生成合并提交。如果以后两个分支已经分叉，先查看差异，再按实际需要普通 merge，不用 reset 或强推绕过。合并后下一任务从更新后的 main 创建新分支；本轮不推送、不删除分支、不改写历史。PR 留待确有协作或评审需要时使用。
+
+### 6.4 本地登录实践：代码已写，运行反馈待登记
+
+2026-10-27 用户报告“写好了”，AI 只读核对后确认下列代码存在，@Mapper 已正确放到接口声明。以下先记录源码事实，未把“写好了”视为登录/注销已实测通过。
+
+| 文件 | 当前代码职责 |
+| --- | --- |
+| UserAccount / UserMapper | 四字段持久化对象、无参构造、参数化账号查询和列别名映射 |
+| PasswordConfig | 注册 DelegatingPasswordEncoder Bean |
+| DatabaseUserDetailsService | 规范化账号、查询用户、转换成框架 UserDetails；无用户时抛认证异常 |
+| LocalSecurityConfig | local 下配置 DaoAuthenticationProvider、过滤器链、默认表单登录和注销；保留 CSRF |
+| DevIdentityController | local 下受保护的 GET /dev/me，只返回认证账号 |
+| PasswordHashDemo | 用户已写独立 main，已移至 src/test/java 的 auth 包；只处理虚构演示密码，提交前已检查不进入应用 JAR |
+
+提交前已核对用户完成的两项清理：DatabaseUserDetailsService 的 java.util.Collection、UserMapper 的 Configuration 无用导入均已删除。当前没有发现需要通过放宽安全规则才能继续的问题。
+
+运行前置：HTTP 监听 127.0.0.1:8081；IDEA 的 MediaDeskApplication 配置提供 SPRING_PROFILES_ACTIVE=local 和 MEDIADESK_DB_USERNAME/PASSWORD，变量名首尾不能多空格。数据库目标为既有隔离库 mediadesk_lab_20261020；不读取或提交真实凭据。用户曾因变量名开头空格取得 null 并发生数据库拒绝，现已反馈修复。
+
+- 将独立 spring-security-crypto 依赖替换为 Boot 管理的 spring-boot-starter-security，保留 PasswordConfig 的 DelegatingPasswordEncoder Bean。
+- DatabaseUserDetailsService 实现 UserDetailsService，通过 UserMapper 查询规范化账号并返回框架 UserDetails；找不到用户抛 UsernameNotFoundException，数据库异常不得包装成账号不存在。账号沿用去首尾 ASCII 空格、Locale.ROOT 小写、`[a-z0-9_]{3,32}`；原始密码不作这些转换。
+- LocalSecurityConfig 仅在 local profile 生效，显式组合 UserDetailsService/PasswordEncoder 为 DaoAuthenticationProvider，交给 SecurityFilterChain；公开 `/api/ping`、`/api/dev/database` 和 `/error`，其他请求要求登录。启用内置表单登录，成功后转 `/dev/me`；保留默认 CSRF 与注销。
+- DevIdentityController 仅 local，GET `/dev/me` 从 Authentication 取得已认证账号，响应仅 `{account: ...}`，不返回持久化对象或整个 principal。它是教学入口，不代替正式 `/api/me`。
+- 本地练习使用框架内置 GET/POST `/login`，GET `/logout` 确认页和带 CSRF 的 POST 注销；未登录浏览器会重定向。正式 `/api/auth/login`、`/api/me` 的 JSON、401/403 和 CSRF 交互仍需形成契约后实现，不能把练习重定向视为正式 API 行为。外部业务接口实现前补齐相应契约。
+
+首个账号只用于已有隔离库。用户在临时 Java main 中用与 PasswordConfig 相同的 PasswordEncoderFactories 生成虚构密码 `MediaDesk-demo-27!` 的完整编码；包括 `{bcrypt}` 在内原样粘贴到下面占位位置，不使用真实密码。先核对选库返回值，再执行 INSERT；遇到账号重复停止，不覆盖已有记录。
+
+```sql
+USE mediadesk_lab_20261020;
+SELECT DATABASE();
+```
+
+```sql
+INSERT INTO users (account, password_hash, display_name)
+VALUES ('demo_user', '替换为本机生成的完整编码', '演示用户');
+```
+
+样例生成器不是应用启动初始化器，不自动创建账号，也不用于生产密码日志。账号正确插入后仅需一次完整流程：local 启动 → `http://127.0.0.1:8081/dev/me` 跳到登录 → 演示账号登录后显示 account → 刷新仍已登录 → `/logout` 确认注销 → 再访问 `/dev/me` 需登录；顺手确认错误密码不能登录。不跑旧 SQL 实验。当前用户只明确反馈代码已写，样例插入及上述运行结果尚未单独登记；下一步 /api/me 可与本流程合并验证，避免重复操作。
+
+### 6.5 2026-10-27：本地登录代码提交前构建
+
+- 环境：Windows 11、Java 25.0.3、Maven 3.10.0；Maven 直接使用 Wrapper 配置对应的本机已有缓存，不改项目依赖或构建脚本。
+- 首次执行第 6 节 Wrapper 命令，在本次受限执行环境中报 `Cannot index into a null array`，未进入编译。直接调用缓存 Maven 的离线构建又因依赖不可用失败；在线尝试遇到网络权限拒绝，经执行权限批准后完成依赖下载和构建。以上失败均不是源码编译错误，Wrapper 入口仍未修复或独立复验。
+- 实际成功命令如下，工作目录为 backend；路径仅对应本机已有缓存，其他机器应使用实际安装位置。clean 的清理目标已核对为本项目 backend/target。
+
+```powershell
+& 'C:\Users\Cheng7\.m2\wrapper\dists\apache-maven-3.10.0\2aaba761688b1a6ea5a46e7e5f4d5406ed7a75ee8da95e5e3079863a23461c9b\bin\mvn.cmd' clean verify
+```
+
+- 结果：17:45:57 +08:00 输出 BUILD SUCCESS，退出码 0；编译 10 个主源码文件和 1 个测试目录演示文件，完成 Spring Boot JAR 重打包。随后检查归档，确认 PasswordHashDemo 不在应用包内。
+- 验证边界：没有自动化测试用例，PasswordHashDemo 只被编译、未执行；未启动应用、连接数据库或验证登录、错误密码、Session、CSRF 与注销。本次构建不替代身份功能运行验收。
 
 ## 7. 配置、安全与部署
 

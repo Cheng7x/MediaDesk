@@ -47,6 +47,10 @@ docs/                    契约、决策、运行说明、实验证据
 
 ID 用数据库生成 ID 或标准 UUID，按当前用途选择。约束由数据库和服务端共同保证；“先查再写”而没有约束或条件更新，不能作为并发保证。
 
+成员生命周期采用 [PRODUCT 2.1](PRODUCT.md#21-owner-与成员生命周期)：Membership 仅表示当前关系，移除删除关系，重新加入创建新关系；未来评论、审核和上传作者引用 User，不外键依赖 Membership。成员变动历史由独立审计承接，不混入授权查询。
+
+邀请接受、成员角色调整、移除成员使用同一空间内一致的短事务串行规则：先锁定 Workspace 行，再读取当前操作者权限、目标成员和相关邀请状态，最后写入。所有相关写入口遵循相同锁顺序；移除同时使目标的待接受邀请失效，已接受邀请不再产生新成员。此方案为 M1 待实现设计，不代表已验证并发；出现空间成员变动吞吐瓶颈后再考虑更细粒度锁定。Owner 保护同时保留在业务判断和写入条件中。
+
 ## 3. 上传与配额（M2）
 
 建立会话并预留配额 → 指定对象/分片的短期签名直传 → 核对成功分片 → 请求完成 → 服务端核对存储结果 → 创建版本与后续持久任务。
@@ -92,6 +96,12 @@ RUNNING → CANCEL_REQUESTED → CANCELED
 FFmpeg/ffprobe 通过参数数组与 `ProcessBuilder` 启动，服务端生成工作目录与路径，不把用户文件名或媒体文本拼入 shell。读取并限制子进程输出，处理退出码、超时、中断与关闭；取消终止进程树，异常后清理临时资源。worker 使用必要权限与受限运行环境，组件版本须维护更新。
 
 ## 5. 权限、审核、分享与进度
+
+当前本地实践已采用 DatabaseUserDetailsService → UserMapper 取用户，再由 DaoAuthenticationProvider 调用 PasswordEncoder 验证；LocalSecurityConfig 和 `/dev/me` 仅在 local 生效。源码存在不代表登录/注销运行验证完成；本地表单入口不能代替正式 JSON API 契约。
+
+下一步的身份模型采用小范围扩展：MediaDeskPrincipal 继承框架 User，增加稳定 userId 和 displayName，沿用框架 UserDetails 与凭据擦除行为，不另存一份密码哈希字段。principal 保存登录时身份信息，不保存空间成员角色或授权结论；显示名暂为登录时快照，重新登录更新，尚不提供资料修改接口。正式响应只映射到白名单 DTO，不序列化 principal 或持久化 UserAccount。
+
+GET `/api/me` 使用当前认证 principal，ID 以十进制字符串返回；未登录的受保护 `/api/**` 请求由 AuthenticationEntryPoint 返回 JSON 401，本地 `/dev/**` 保留表单重定向。鉴权过滤器发生在 MVC Controller 前，不能只靠 ControllerAdvice 定义未登录响应。该身份 API 仍待用户实现，契约见 DEVELOPMENT 3.4。
 
 - 同站 Web 默认 Spring Security 会话认证；M1 单实例，M6 Spring Session + Redis。使用成熟密码编码器，HTTPS 下配置 Secure、HttpOnly 和合适 SameSite；写请求保留 CSRF，不平行建设 JWT 登录。[Spring Security CSRF](https://docs.spring.io/spring-security/reference/servlet/exploits/csrf.html)
 - 查询、修改、签名、后台重试与 SSE 都校验当前成员身份和真实资源归属；版本、评论、审核等嵌套 ID 必须相互匹配，不能拼接其他空间 ID 绕过授权。
