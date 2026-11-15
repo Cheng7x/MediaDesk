@@ -9,11 +9,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 @Configuration
 @Profile("local")
 public class LocalSecurityConfig {
-
     @Bean
     public DaoAuthenticationProvider authenticationProvider(
         UserDetailsService userDetailsService,
@@ -28,7 +28,9 @@ public class LocalSecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
         HttpSecurity http,
-        DaoAuthenticationProvider authenticationProvider
+        DaoAuthenticationProvider authenticationProvider,
+        ApiAuthenticationEntryPoint apiAuthenticationEntryPoint,
+        ApiAccessDeniedHandler apiAccessDeniedHandler
     ) throws Exception {
         http.authenticationProvider(authenticationProvider)
             .authorizeHttpRequests(authorize -> authorize
@@ -42,6 +44,13 @@ public class LocalSecurityConfig {
             .formLogin(form -> form
                 .defaultSuccessUrl("/dev/me", true)
                 .permitAll()
+            )
+            .exceptionHandling(handling -> handling
+                .defaultAuthenticationEntryPointFor(
+                    apiAuthenticationEntryPoint,
+                    PathPatternRequestMatcher.withDefaults().matcher("/api/**")
+                )
+                .accessDeniedHandler(apiAccessDeniedHandler)
             )
             .logout(Customizer.withDefaults());
 

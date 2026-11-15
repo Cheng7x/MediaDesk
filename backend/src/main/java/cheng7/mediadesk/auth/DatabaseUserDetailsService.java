@@ -35,9 +35,12 @@ public class DatabaseUserDetailsService implements UserDetailsService {
             throw new UsernameNotFoundException("账号或密码错误");
         }
 
-        return User.withUsername(user.getAccount())
-            .password(user.getPasswordHash())
-            .authorities(Collections.emptyList())
-            .build();
+        return new MediaDeskPrincipal(
+            user.getId(),
+            user.getAccount(),
+            user.getPasswordHash(),
+            user.getDisplayName(),
+            Collections.emptyList()
+        );
     }
 }
